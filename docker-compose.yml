@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cts_db
+    environment:
+      POSTGRES_DB: cts_db
+      POSTGRES_USER: cts_user
+      POSTGRES_PASSWORD: cts_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - cts_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cts_user -d cts_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: cts_app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/cts_db
+      SPRING_DATASOURCE_USERNAME: cts_user
+      SPRING_DATASOURCE_PASSWORD: cts_pass
+      APP_JWT_SECRET: ${JWT_SECRET:-ctsApiSuperSecretKeyFor-JWT-Authentication-2026}
+      APP_JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  cts_pgdata:
