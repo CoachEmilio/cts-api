@@ -3,9 +3,9 @@ spring:
     name: cts-api
 
   datasource:
-    url: jdbc:postgresql://localhost:5433/cts_db
-    username: cts_user
-    password: cts_pass
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/cts_db}
+    username: ${SPRING_DATASOURCE_USERNAME:cts_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:cts_pass}
     driver-class-name: org.postgresql.Driver
 
   jpa:
