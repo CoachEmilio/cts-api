@@ -200,6 +200,56 @@ class CandidateFlowIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void idor_candidateBCannotAccessCandidateAAttempt() throws Exception {
+        String candidateBToken = registerAndGetToken("cand_b_" + System.nanoTime() + "@test.com");
+
+        // Admin creates test with one question
+        MvcResult createResult = mockMvc.perform(post("/api/v1/tests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("skill", "tumbling", "title", "IDOR Test"))))
+                .andExpect(status().isCreated()).andReturn();
+        Long testId = toLong(parseBody(createResult).get("id"));
+
+        mockMvc.perform(post("/api/v1/tests/" + testId + "/questions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + adminToken)
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "text", "Pregunta IDOR", "position", 0,
+                        "options", List.of(
+                                Map.of("text", "A", "correct", true, "position", 0),
+                                Map.of("text", "B", "correct", false, "position", 1))))));
+
+        // Candidate A starts attempt
+        MvcResult attemptResult = mockMvc.perform(post("/api/v1/tests/" + testId + "/attempts")
+                        .header("Authorization", "Bearer " + candidateToken))
+                .andExpect(status().isCreated()).andReturn();
+        Long attemptId = toLong(parseBody(attemptResult).get("attemptId"));
+
+        // Get option ID to send a valid body
+        MvcResult testView = mockMvc.perform(get("/api/v1/tests/" + testId)
+                        .header("Authorization", "Bearer " + candidateBToken))
+                .andExpect(status().isOk()).andReturn();
+        var questions = (List<Map<String, Object>>) parseBody(testView).get("questions");
+        Long questionId = toLong(questions.get(0).get("id"));
+        Long optionId = toLong(((List<Map<String, Object>>) questions.get(0).get("options")).get(0).get("id"));
+
+        // Candidate B tries to submit an answer to Candidate A's attempt → 404
+        mockMvc.perform(post("/api/v1/attempts/" + attemptId + "/answers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + candidateBToken)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("questionId", questionId, "optionId", optionId))))
+                .andExpect(status().isNotFound());
+
+        // Candidate B tries to submit Candidate A's attempt → 404
+        mockMvc.perform(post("/api/v1/attempts/" + attemptId + "/submit")
+                        .header("Authorization", "Bearer " + candidateBToken))
+                .andExpect(status().isNotFound());
+    }
+
     // --- helpers ---
 
     private String registerAndGetToken(String email) throws Exception {

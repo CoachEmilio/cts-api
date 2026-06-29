@@ -87,7 +87,7 @@ class AttemptServiceTest {
             return a;
         });
 
-        var result = service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L));
+        var result = service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L), user(1L));
 
         assertThat(result.answerId()).isEqualTo(100L);
         assertThat(result.questionId()).isEqualTo(4L);
@@ -113,7 +113,7 @@ class AttemptServiceTest {
         when(answerRepository.findByAttemptAndQuestion(att, question)).thenReturn(Optional.of(existing));
         when(answerRepository.save(any())).thenReturn(existing);
 
-        var result = service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L));
+        var result = service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L), user(1L));
 
         assertThat(result.optionId()).isEqualTo(14L);
         verify(answerRepository).save(existing);
@@ -126,7 +126,7 @@ class AttemptServiceTest {
         att.setStatus(AttemptStatus.SUBMITTED);
         when(attemptRepository.findById(10L)).thenReturn(Optional.of(att));
 
-        assertThatThrownBy(() -> service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L)))
+        assertThatThrownBy(() -> service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L), user(1L)))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("already submitted");
     }
@@ -141,9 +141,20 @@ class AttemptServiceTest {
         when(attemptRepository.findById(10L)).thenReturn(Optional.of(att));
         when(questionRepository.findById(4L)).thenReturn(Optional.of(questionFromOtherTest));
 
-        assertThatThrownBy(() -> service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L)))
+        assertThatThrownBy(() -> service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L), user(1L)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not belong to this test");
+    }
+
+    @Test
+    void submitAnswer_throwsWhenUserIsNotOwner() {
+        var att = attempt(10L, activeTest(1L));
+        when(attemptRepository.findById(10L)).thenReturn(Optional.of(att));
+
+        // att owner = user(1L), requester = user(2L)
+        assertThatThrownBy(() -> service.submitAnswer(10L, new SubmitAnswerRequest(4L, 14L), user(2L)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Attempt not found");
     }
 
     @Test
@@ -162,7 +173,7 @@ class AttemptServiceTest {
         when(answerRepository.findByAttempt(att)).thenReturn(List.of(answer1, answer2));
         when(resultRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var result = service.submitAttempt(10L);
+        var result = service.submitAttempt(10L, user(1L));
 
         assertThat(result.scorePct().doubleValue()).isEqualTo(50.0);
         assertThat(result.correctCount()).isEqualTo(1);
@@ -179,8 +190,19 @@ class AttemptServiceTest {
         att.setStatus(AttemptStatus.SUBMITTED);
         when(attemptRepository.findById(10L)).thenReturn(Optional.of(att));
 
-        assertThatThrownBy(() -> service.submitAttempt(10L))
+        assertThatThrownBy(() -> service.submitAttempt(10L, user(1L)))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void submitAttempt_throwsWhenUserIsNotOwner() {
+        var att = attempt(10L, activeTest(1L));
+        when(attemptRepository.findById(10L)).thenReturn(Optional.of(att));
+
+        // att owner = user(1L), requester = user(2L)
+        assertThatThrownBy(() -> service.submitAttempt(10L, user(2L)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Attempt not found");
     }
 
     // --- helpers ---
@@ -198,7 +220,14 @@ class AttemptServiceTest {
         var a = new Attempt();
         ReflectionTestUtils.setField(a, "id", id);
         a.setSkillTest(test);
+        a.setUser(user(1L));
         return a;
+    }
+
+    private AppUser user(Long id) {
+        var u = new AppUser();
+        ReflectionTestUtils.setField(u, "id", id);
+        return u;
     }
 
     private Question question(Long id, SkillTest test) {

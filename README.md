@@ -190,9 +190,8 @@ com.surstudio.cts
     └── upload/     # UploadController, UploadResourceConfig
 ```
 
-> Nota: el package `onboarding` ahora solo contiene General Information (el
-> research wizard se removió). Rename a `generalinfo`/`profile` pendiente — es
-> cosmético y va en su propio commit.
+> Nota: el package `onboarding` contiene únicamente General Information (el
+> research wizard fue removido).
 
 ## Migraciones Flyway
 

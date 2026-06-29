@@ -71,7 +71,7 @@ class AttemptControllerTest {
     @WithMockUser(roles = "CANDIDATE")
     void submitAnswer_returns201() throws Exception {
         var response = new SubmitAnswerResponse(100L, 4L, 14L);
-        when(service.submitAnswer(eq(10L), any())).thenReturn(response);
+        when(service.submitAnswer(eq(10L), any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/attempts/10/answers")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -97,7 +97,7 @@ class AttemptControllerTest {
     @Test
     @WithMockUser(roles = "CANDIDATE")
     void submitAnswer_returns409WhenAlreadySubmitted() throws Exception {
-        when(service.submitAnswer(eq(10L), any()))
+        when(service.submitAnswer(eq(10L), any(), any()))
                 .thenThrow(new ConflictException("Attempt 10 is already submitted"));
 
         mockMvc.perform(post("/api/v1/attempts/10/answers")
@@ -112,7 +112,7 @@ class AttemptControllerTest {
     @WithMockUser(roles = "CANDIDATE")
     void submitAttempt_returns200WithResult() throws Exception {
         var response = new AttemptResultResponse(10L, java.math.BigDecimal.valueOf(75.0), 3, 4, AttemptStatus.SUBMITTED, Instant.now());
-        when(service.submitAttempt(10L)).thenReturn(response);
+        when(service.submitAttempt(eq(10L), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/attempts/10/submit"))
                 .andExpect(status().isOk())
@@ -125,7 +125,7 @@ class AttemptControllerTest {
     @Test
     @WithMockUser(roles = "CANDIDATE")
     void submitAttempt_returns409WhenAlreadySubmitted() throws Exception {
-        when(service.submitAttempt(10L))
+        when(service.submitAttempt(eq(10L), any()))
                 .thenThrow(new ConflictException("Attempt 10 is already submitted"));
 
         mockMvc.perform(post("/api/v1/attempts/10/submit"))

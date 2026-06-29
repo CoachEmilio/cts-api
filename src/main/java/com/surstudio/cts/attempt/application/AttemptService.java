@@ -61,8 +61,9 @@ public class AttemptService {
         return new StartAttemptResponse(saved.getId(), test.getId(), saved.getStatus(), saved.getStartedAt());
     }
 
-    public SubmitAnswerResponse submitAnswer(Long attemptId, SubmitAnswerRequest request) {
+    public SubmitAnswerResponse submitAnswer(Long attemptId, SubmitAnswerRequest request, AppUser user) {
         var attempt = requireAttempt(attemptId);
+        requireOwnership(attempt, user);
         requireInProgress(attempt);
 
         var question = questionRepository.findById(request.questionId())
@@ -90,8 +91,9 @@ public class AttemptService {
         return new SubmitAnswerResponse(saved.getId(), question.getId(), option.getId());
     }
 
-    public AttemptResultResponse submitAttempt(Long attemptId) {
+    public AttemptResultResponse submitAttempt(Long attemptId, AppUser user) {
         var attempt = requireAttempt(attemptId);
+        requireOwnership(attempt, user);
         requireInProgress(attempt);
 
         var answers = answerRepository.findByAttempt(attempt);
@@ -121,6 +123,12 @@ public class AttemptService {
     private Attempt requireAttempt(Long id) {
         return attemptRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Attempt not found: " + id));
+    }
+
+    private void requireOwnership(Attempt attempt, AppUser user) {
+        if (!attempt.getUser().getId().equals(user.getId())) {
+            throw new ResourceNotFoundException("Attempt not found: " + attempt.getId());
+        }
     }
 
     private void requireInProgress(Attempt attempt) {

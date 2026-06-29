@@ -34,13 +34,16 @@ public class AttemptController {
     @PreAuthorize("hasRole('CANDIDATE')")
     public SubmitAnswerResponse submitAnswer(
             @PathVariable Long attemptId,
-            @Valid @RequestBody SubmitAnswerRequest request) {
-        return attemptService.submitAnswer(attemptId, request);
+            @Valid @RequestBody SubmitAnswerRequest request,
+            @AuthenticationPrincipal AppUser user) {
+        return attemptService.submitAnswer(attemptId, request, user);
     }
 
     @PostMapping("/attempts/{attemptId}/submit")
     @PreAuthorize("hasRole('CANDIDATE')")
-    public AttemptResultResponse submitAttempt(@PathVariable Long attemptId) {
-        return attemptService.submitAttempt(attemptId);
+    public AttemptResultResponse submitAttempt(
+            @PathVariable Long attemptId,
+            @AuthenticationPrincipal AppUser user) {
+        return attemptService.submitAttempt(attemptId, user);
     }
 }
