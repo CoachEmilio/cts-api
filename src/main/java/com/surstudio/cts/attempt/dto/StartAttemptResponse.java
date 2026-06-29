@@ -8,5 +8,6 @@ public record StartAttemptResponse(
         Long attemptId,
         Long testId,
         AttemptStatus status,
-        Instant startedAt
+        Instant startedAt,
+        Instant deadline
 ) {}

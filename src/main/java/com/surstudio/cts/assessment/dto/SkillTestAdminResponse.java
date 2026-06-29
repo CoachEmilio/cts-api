@@ -9,6 +9,7 @@ public record SkillTestAdminResponse(
         Skill skill,
         String title,
         boolean active,
+        int durationMinutes,
         List<QuestionDto> questions
 ) {
     public record QuestionDto(Long id, String text, int position, List<OptionDto> options) {}

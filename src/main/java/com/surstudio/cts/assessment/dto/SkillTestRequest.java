@@ -7,5 +7,6 @@ import jakarta.validation.constraints.NotNull;
 public record SkillTestRequest(
         @NotNull Skill skill,
         @NotBlank String title,
-        Boolean active
+        Boolean active,
+        Integer durationMinutes
 ) {}

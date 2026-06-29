@@ -2,7 +2,10 @@ package com.surstudio.cts.assessment.application;
 
 import com.surstudio.cts.assessment.domain.*;
 import com.surstudio.cts.assessment.dto.*;
+import com.surstudio.cts.attempt.domain.AttemptRepository;
+import com.surstudio.cts.attempt.domain.AttemptStatus;
 import com.surstudio.cts.common.ResourceNotFoundException;
+import com.surstudio.cts.identity.domain.AppUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,10 +17,14 @@ public class SkillTestService {
 
     private final SkillTestRepository skillTestRepository;
     private final QuestionRepository questionRepository;
+    private final AttemptRepository attemptRepository;
 
-    public SkillTestService(SkillTestRepository skillTestRepository, QuestionRepository questionRepository) {
+    public SkillTestService(SkillTestRepository skillTestRepository,
+                            QuestionRepository questionRepository,
+                            AttemptRepository attemptRepository) {
         this.skillTestRepository = skillTestRepository;
         this.questionRepository = questionRepository;
+        this.attemptRepository = attemptRepository;
     }
 
     public SkillTestAdminResponse createTest(SkillTestRequest request) {
@@ -25,6 +32,7 @@ public class SkillTestService {
         test.setSkill(request.skill());
         test.setTitle(request.title());
         if (request.active() != null) test.setActive(request.active());
+        if (request.durationMinutes() != null) test.setDurationMinutes(request.durationMinutes());
         return toAdminResponse(skillTestRepository.save(test));
     }
 
@@ -33,6 +41,7 @@ public class SkillTestService {
         test.setSkill(request.skill());
         test.setTitle(request.title());
         if (request.active() != null) test.setActive(request.active());
+        if (request.durationMinutes() != null) test.setDurationMinutes(request.durationMinutes());
         return toAdminResponse(test);
     }
 
@@ -74,17 +83,17 @@ public class SkillTestService {
     }
 
     @Transactional(readOnly = true)
-    public List<SkillTestCandidateView> listActiveTests() {
+    public List<SkillTestCandidateView> listActiveTests(AppUser user) {
         return skillTestRepository.findByActiveTrue().stream()
-                .map(this::toCandidateView)
+                .map(t -> toCandidateView(t, user))
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public SkillTestCandidateView getTestForCandidate(Long id) {
+    public SkillTestCandidateView getTestForCandidate(Long id, AppUser user) {
         var test = skillTestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("SkillTest not found: " + id));
-        return toCandidateView(test);
+        return toCandidateView(test, user);
     }
 
     private SkillTest requireTest(Long id) {
@@ -100,6 +109,7 @@ public class SkillTestService {
     private SkillTestAdminResponse toAdminResponse(SkillTest test) {
         return new SkillTestAdminResponse(
                 test.getId(), test.getSkill(), test.getTitle(), test.isActive(),
+                test.getDurationMinutes(),
                 test.getQuestions().stream().map(this::toQuestionDto).toList()
         );
     }
@@ -113,9 +123,11 @@ public class SkillTestService {
         );
     }
 
-    private SkillTestCandidateView toCandidateView(SkillTest test) {
+    private SkillTestCandidateView toCandidateView(SkillTest test, AppUser user) {
+        boolean completed = user != null && attemptRepository
+                .existsByUserIdAndSkillTestIdAndStatus(user.getId(), test.getId(), AttemptStatus.SUBMITTED);
         return new SkillTestCandidateView(
-                test.getId(), test.getSkill(), test.getTitle(),
+                test.getId(), test.getSkill(), test.getTitle(), test.getDurationMinutes(), completed,
                 test.getQuestions().stream()
                         .map(q -> new SkillTestCandidateView.QuestionDto(
                                 q.getId(), q.getText(), q.getPosition(),

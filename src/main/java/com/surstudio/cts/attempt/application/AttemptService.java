@@ -54,11 +54,23 @@ public class AttemptService {
         if (!test.isActive()) {
             throw new ConflictException("Test " + testId + " is not active");
         }
+        if (attemptRepository.existsByUserIdAndSkillTestIdAndStatus(user.getId(), testId, AttemptStatus.SUBMITTED)) {
+            throw new ConflictException("You have already completed this test");
+        }
         var attempt = new Attempt();
         attempt.setSkillTest(test);
         attempt.setUser(user);
+        var deadline = Instant.now().plusSeconds((long) test.getDurationMinutes() * 60);
+        attempt.setDeadline(deadline);
         var saved = attemptRepository.save(attempt);
-        return new StartAttemptResponse(saved.getId(), test.getId(), saved.getStatus(), saved.getStartedAt());
+        return new StartAttemptResponse(saved.getId(), test.getId(), saved.getStatus(), saved.getStartedAt(), saved.getDeadline());
+    }
+
+    public void recordViolation(Long attemptId, AppUser user) {
+        var attempt = requireAttempt(attemptId);
+        requireOwnership(attempt, user);
+        requireInProgress(attempt);
+        attempt.setViolationsCount(attempt.getViolationsCount() + 1);
     }
 
     public SubmitAnswerResponse submitAnswer(Long attemptId, SubmitAnswerRequest request, AppUser user) {

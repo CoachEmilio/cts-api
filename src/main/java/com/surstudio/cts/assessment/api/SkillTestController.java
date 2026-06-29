@@ -2,10 +2,12 @@ package com.surstudio.cts.assessment.api;
 
 import com.surstudio.cts.assessment.application.SkillTestService;
 import com.surstudio.cts.assessment.dto.*;
+import com.surstudio.cts.identity.domain.AppUser;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -62,13 +64,13 @@ public class SkillTestController {
 
     @GetMapping("/tests")
     @PreAuthorize("isAuthenticated()")
-    public List<SkillTestCandidateView> listTests() {
-        return skillTestService.listActiveTests();
+    public List<SkillTestCandidateView> listTests(@AuthenticationPrincipal AppUser user) {
+        return skillTestService.listActiveTests(user);
     }
 
     @GetMapping("/tests/{id}")
     @PreAuthorize("isAuthenticated()")
-    public SkillTestCandidateView getTest(@PathVariable Long id) {
-        return skillTestService.getTestForCandidate(id);
+    public SkillTestCandidateView getTest(@PathVariable Long id, @AuthenticationPrincipal AppUser user) {
+        return skillTestService.getTestForCandidate(id, user);
     }
 }

@@ -9,6 +9,8 @@ public record SkillTestCandidateView(
         Long id,
         Skill skill,
         String title,
+        int durationMinutes,
+        boolean completed,
         List<QuestionDto> questions
 ) {
     public record QuestionDto(Long id, String text, int position, List<OptionDto> options) {}

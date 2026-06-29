@@ -39,7 +39,7 @@ score = respuestas_correctas / total_preguntas  (0–100%)
 Vive detrás de `ScoringStrategy` (una sola impl plana hoy — OCP listo para
 extensión sin tocar el motor).
 
-## Estado: M1–M7 (Spring side) completados + refactor pass
+## Estado: M1–M8 completados
 
 | Milestone | Estado | Qué entrega |
 |-----------|--------|-------------|
@@ -50,12 +50,20 @@ extensión sin tocar el motor).
 | M5 | ✅ | Testcontainers (singleton pattern), MockMvc integration tests, Dockerfile multi-stage, docker-compose, GitHub Actions CI |
 | M6 | ✅ | Descubrimiento recruiter: `GET /api/v1/recruiter/candidates?skill=X&minScore=Y` |
 | M7 | ✅ | Onboarding/perfil: campos extra en registro, `onboardingComplete`, `GET/PATCH /users/me`, general-information, upload de avatar |
+| M8 | ✅ | Anti-trampa: deadline server-side, bloqueo de reintento, registro de violaciones |
 
 **Refactor pass (post-M7):** rutas unificadas bajo `/users/me/*`, `skill` como
 enum (`Skill`, case-insensitive), y **research wizard removido** del producto
 (se recolectaba pero nadie lo consumía). General Information se conserva.
 
 **77 tests pasan.** Suite completa en `./mvnw verify`.
+
+## Estado: M1–M8 completados (actualizado)
+
+La respuesta de `GET /api/v1/tests` ahora incluye `completed: boolean` por test,
+calculado server-side según si el usuario autenticado ya tiene un intento
+`SUBMITTED` para ese test. El frontend usa este campo para bloquear la entrada
+antes de que el candidato intente rendir.
 
 ## Contrato de la API
 
@@ -73,20 +81,22 @@ GET    /api/v1/users/me               → { id, email, fullName, phone, role, on
 PATCH  /api/v1/users/me               → actualiza onboardingComplete, avatarUrl, fullName, phone
 
 # Banco editable (ADMIN)
-POST   /api/v1/tests
+POST   /api/v1/tests                  → { skill, title, active, durationMinutes? }
 PUT    /api/v1/tests/{id}
 POST   /api/v1/tests/{id}/questions
 PUT    /api/v1/questions/{id}
 DELETE /api/v1/questions/{id}
 
 # Tests para candidatos (autenticado)
-GET    /api/v1/tests                  → lista activos, sin isCorrect
+GET    /api/v1/tests                  → lista activos, sin isCorrect (incluye durationMinutes y completed)
 GET    /api/v1/tests/{id}             → test saneado
 
 # Rendir test (CANDIDATE)
-POST   /api/v1/tests/{id}/attempts    → inicia intento
+POST   /api/v1/tests/{id}/attempts    → inicia intento → { attemptId, testId, status, startedAt, deadline }
+                                        403 si ya existe un intento SUBMITTED para este test
 POST   /api/v1/attempts/{id}/answers  → responde/cambia respuesta
 POST   /api/v1/attempts/{id}/submit   → calcula score server-side → Result
+POST   /api/v1/attempts/{id}/violations → registra una violación de anti-trampa (204)
 
 # Perfil candidato (CANDIDATE)
 GET    /api/v1/users/me/profile
@@ -103,18 +113,39 @@ GET    /uploads/{filename}            → recurso público (sirve avatares)
 
 # Recruiter (RECRUITER)
 GET    /api/v1/recruiter/candidates?skill=X&minScore=Y  → candidatos con score verificado
-                                                          (skill matchea contra el enum, case-insensitive)
 ```
+
+## Anti-trampa (M8)
+
+El intento tiene un **deadline calculado server-side** (`startedAt + durationMinutes`).
+El cliente recibe el `deadline` en ISO-8601 al iniciar y hace el countdown localmente.
+
+Eventos que generan una violación:
+- Cambio de pestaña (`visibilitychange`)
+- Pérdida de foco de ventana (`blur`)
+- Salida de pantalla completa (`fullscreenchange`)
+
+Cada violación se persiste vía `POST /attempts/{id}/violations`. El frontend
+acumula hasta 3; a la tercera hace auto-submit. Al vencimiento del deadline, el
+frontend también hace auto-submit. En ambos casos el servidor calcula el score
+con las respuestas registradas hasta ese momento.
+
+El campo `violations_count` en `attempt` es auditoría — no se usa para rechazar
+el intento server-side (la política de 3 violaciones es UI).
+
+Un candidato **no puede rendir el mismo test dos veces**: si ya existe un intento
+`SUBMITTED` para ese `(user, skillTest)`, el endpoint devuelve 409.
 
 ## Modelo de dominio
 
 ```
 identity:   AppUser(email, fullName, phone, role, plan, onboardingComplete, avatarUrl)
             CandidateProfile(displayName, bio)
-assessment: SkillTest(skill, title, active) → Question → Option(isCorrect, solo-servidor)
+assessment: SkillTest(skill, title, active, durationMinutes) → Question → Option(isCorrect, solo-servidor)
+            SkillTestCandidateView incluye completed:boolean calculado server-side por usuario
             (skill es un enum Skill, no un String libre)
-attempt:    Attempt(user, skillTest, status, startedAt, submittedAt) → Answer
-            → Result(scorePct, correctCount, totalCount)
+attempt:    Attempt(user, skillTest, status, startedAt, submittedAt, deadline, violationsCount)
+            → Answer → Result(scorePct, correctCount, totalCount)
 scoring:    ScoringStrategy, FlatScoringStrategy
 generalinfo (package onboarding): GeneralInfoCategory → GeneralInfoQuestion
             → GeneralInfoOption → UserGeneralInfoAnswer
@@ -156,6 +187,17 @@ docker compose up --build
 - API docs: `http://localhost:8080/api-docs`
 - Health: `http://localhost:8080/actuator/health`
 
+## Usuario admin (desarrollo)
+
+Creado por la migración V9. No hay forma de registrar un ADMIN por el endpoint
+público — el rol sólo se asigna directamente en BD o via seed.
+
+| Campo | Valor |
+|-------|-------|
+| Email | `admin@cts.dev` |
+| Password | `admin123` |
+| Rol | `ADMIN` |
+
 ## Estructura de paquetes
 
 ```
@@ -190,8 +232,8 @@ com.surstudio.cts
     └── upload/     # UploadController, UploadResourceConfig
 ```
 
-> Nota: el package `onboarding` contiene únicamente General Information (el
-> research wizard fue removido).
+> El package `onboarding` contiene únicamente General Information (el research
+> wizard fue removido en V8).
 
 ## Migraciones Flyway
 
@@ -204,7 +246,9 @@ com.surstudio.cts
 | V5 | Campos onboarding en `app_user` + tablas `general_info_*`, `onboarding_question/option`, `user_*_answer` |
 | V6 | Seed: opciones de información general (especialidad, experiencia, inglés) + seed de research (luego removido por V8) |
 | V7 | `skill` como enum (Replace Type Code with Enum) |
-| V8 | Remove research wizard: drop `onboarding_question/option`, `user_research_answer` + seed de research |
+| V8 | Remove research wizard: drop `onboarding_question/option`, `user_research_answer` |
+| V9 | Seed: usuario admin de desarrollo (`admin@cts.dev` / `admin123`) |
+| V10 | `duration_minutes` en `skill_test` · `deadline` y `violations_count` en `attempt` |
 
 ## Variables de entorno
 
@@ -224,6 +268,10 @@ com.surstudio.cts
 - **`skill` como enum (no String):** vocabulario canónico, sin typos, discovery confiable. Normalización case-insensitive en el borde. Si algún día las skills tienen que ser dato administrable en runtime, se migra de enum a entidad.
 - **Research wizard removido:** se recolectaba pero ningún cliente lo consumía (peso muerto). La data de research se conserva fuera del producto.
 - **Trust boundary estructural:** `SkillTestCandidateView.OptionDto` no tiene campo `correct` — imposible exponerlo accidentalmente.
+- **Deadline server-side:** el cliente recibe el timestamp y hace el countdown. El servidor no rechaza el submit si se pasó el tiempo (el frontend hace auto-submit antes), pero la auditoría queda en `deadline`.
+- **Violaciones como auditoría, no como gate server:** la política de 3 violaciones vive en el frontend (UX); el backend persiste el conteo para análisis pero no bloquea el submit en base a él.
+- **One-attempt enforced en el servidor:** el check de `existsByUserIdAndSkillTestIdAndStatus(SUBMITTED)` está en `AttemptService`, no en el cliente.
+- **`completed` server-side en la lista de tests:** `GET /api/v1/tests` calcula por cada test si el usuario ya tiene un `SUBMITTED`, devolviendo `completed: boolean`. El frontend bloquea la entrada visualmente (candado + opacity) antes de que el candidato intente rendir. Si accede directo por URL, la intro también muestra pantalla de bloqueado.
 - **Contrato limpio (HTTP + ProblemDetail):** sin envelope. Role como lowercase string en respuestas al cliente.
 - **DIP:** el dominio define los `Repository` como interfaces; Spring Data los implementa.
 - **Singleton container pattern en tests:** Testcontainers sin `@Testcontainers`/`@Container` — el contenedor vive en un `static {}` para sobrevivir entre clases que comparten el contexto Spring cacheado.

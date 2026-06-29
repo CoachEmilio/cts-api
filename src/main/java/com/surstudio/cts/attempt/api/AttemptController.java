@@ -46,4 +46,13 @@ public class AttemptController {
             @AuthenticationPrincipal AppUser user) {
         return attemptService.submitAttempt(attemptId, user);
     }
+
+    @PostMapping("/attempts/{attemptId}/violations")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public void recordViolation(
+            @PathVariable Long attemptId,
+            @AuthenticationPrincipal AppUser user) {
+        attemptService.recordViolation(attemptId, user);
+    }
 }

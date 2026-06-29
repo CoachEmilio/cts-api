@@ -32,6 +32,12 @@ public class Attempt {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    @Column(name = "deadline")
+    private Instant deadline;
+
+    @Column(name = "violations_count", nullable = false)
+    private int violationsCount = 0;
+
     public Long getId() { return id; }
     public AppUser getUser() { return user; }
     public void setUser(AppUser user) { this.user = user; }
@@ -42,4 +48,8 @@ public class Attempt {
     public Instant getStartedAt() { return startedAt; }
     public Instant getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(Instant submittedAt) { this.submittedAt = submittedAt; }
+    public Instant getDeadline() { return deadline; }
+    public void setDeadline(Instant deadline) { this.deadline = deadline; }
+    public int getViolationsCount() { return violationsCount; }
+    public void setViolationsCount(int violationsCount) { this.violationsCount = violationsCount; }
 }

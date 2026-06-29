@@ -26,6 +26,9 @@ public class SkillTest {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "duration_minutes", nullable = false)
+    private int durationMinutes = 10;
+
     @OneToMany(mappedBy = "skillTest", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("position ASC")
     private List<Question> questions = new ArrayList<>();
@@ -45,6 +48,8 @@ public class SkillTest {
     public void setTitle(String title) { this.title = title; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    public int getDurationMinutes() { return durationMinutes; }
+    public void setDurationMinutes(int durationMinutes) { this.durationMinutes = durationMinutes; }
     public List<Question> getQuestions() { return questions; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
