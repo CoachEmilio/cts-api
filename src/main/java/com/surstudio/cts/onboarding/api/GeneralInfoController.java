@@ -5,6 +5,7 @@ import com.surstudio.cts.onboarding.application.OnboardingService;
 import com.surstudio.cts.onboarding.dto.GeneralInfoResponse;
 import com.surstudio.cts.onboarding.dto.SaveGeneralInfoRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,6 +28,7 @@ public class GeneralInfoController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('CANDIDATE')")
     public void saveAnswers(@AuthenticationPrincipal AppUser user,
                              @RequestBody SaveGeneralInfoRequest request) {
         onboardingService.saveGeneralInfo(user, request);

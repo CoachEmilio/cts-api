@@ -4,6 +4,7 @@ import com.surstudio.cts.assessment.domain.Option;
 import com.surstudio.cts.assessment.domain.Question;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
@@ -30,6 +31,10 @@ public class Answer {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 
     public Long getId() { return id; }
     public Attempt getAttempt() { return attempt; }

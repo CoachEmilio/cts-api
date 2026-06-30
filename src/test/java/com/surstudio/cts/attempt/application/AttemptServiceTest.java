@@ -41,6 +41,7 @@ class AttemptServiceTest {
         var test = activeTest(1L);
         var saved = attempt(10L, test);
         when(skillTestRepository.findById(1L)).thenReturn(Optional.of(test));
+        when(attemptRepository.existsByUserIdAndSkillTestId(any(), any())).thenReturn(false);
         when(attemptRepository.save(any())).thenReturn(saved);
 
         var result = service.startAttempt(1L, new AppUser());
@@ -68,6 +69,17 @@ class AttemptServiceTest {
         assertThatThrownBy(() -> service.startAttempt(1L, new AppUser()))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("not active");
+    }
+
+    @Test
+    void startAttempt_throwsWhenAttemptAlreadyExists() {
+        var test = activeTest(1L);
+        when(skillTestRepository.findById(1L)).thenReturn(Optional.of(test));
+        when(attemptRepository.existsByUserIdAndSkillTestId(any(), any())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.startAttempt(1L, user(1L)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already attempted");
     }
 
     @Test

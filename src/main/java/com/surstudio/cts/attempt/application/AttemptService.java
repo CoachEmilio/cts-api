@@ -54,8 +54,8 @@ public class AttemptService {
         if (!test.isActive()) {
             throw new ConflictException("Test " + testId + " is not active");
         }
-        if (attemptRepository.existsByUserIdAndSkillTestIdAndStatus(user.getId(), testId, AttemptStatus.SUBMITTED)) {
-            throw new ConflictException("You have already completed this test");
+        if (attemptRepository.existsByUserIdAndSkillTestId(user.getId(), testId)) {
+            throw new ConflictException("You have already attempted this test");
         }
         var attempt = new Attempt();
         attempt.setSkillTest(test);
@@ -77,6 +77,7 @@ public class AttemptService {
         var attempt = requireAttempt(attemptId);
         requireOwnership(attempt, user);
         requireInProgress(attempt);
+        requireNotExpired(attempt);
 
         var question = questionRepository.findById(request.questionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Question not found: " + request.questionId()));
@@ -146,6 +147,12 @@ public class AttemptService {
     private void requireInProgress(Attempt attempt) {
         if (attempt.getStatus() != AttemptStatus.IN_PROGRESS) {
             throw new ConflictException("Attempt " + attempt.getId() + " is already submitted");
+        }
+    }
+
+    private void requireNotExpired(Attempt attempt) {
+        if (attempt.getDeadline() != null && Instant.now().isAfter(attempt.getDeadline())) {
+            throw new ConflictException("Attempt " + attempt.getId() + " has expired");
         }
     }
 }

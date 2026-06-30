@@ -54,6 +54,10 @@ public class OnboardingService {
                     .orElseThrow(() -> new ResourceNotFoundException("Question not found: " + entry.questionId()));
             var option = optionRepository.findById(entry.answerId())
                     .orElseThrow(() -> new ResourceNotFoundException("Option not found: " + entry.answerId()));
+            if (!option.getQuestion().getId().equals(question.getId())) {
+                throw new IllegalArgumentException(
+                        "Option " + entry.answerId() + " does not belong to question " + entry.questionId());
+            }
             var answer = new UserGeneralInfoAnswer();
             answer.setUser(user);
             answer.setQuestion(question);

@@ -52,11 +52,10 @@ public class ProfileService {
 
     @Transactional(readOnly = true)
     public List<SkillHistoryEntry> getSkillHistory(AppUser user) {
-        var attempts = attemptRepository.findByUserIdAndStatus(user.getId(), AttemptStatus.SUBMITTED);
-        return attempts.stream()
-                .map(attempt -> {
-                    var result = resultRepository.findByAttempt(attempt)
-                            .orElseThrow();
+        return resultRepository.findSubmittedByUserId(user.getId(), AttemptStatus.SUBMITTED)
+                .stream()
+                .map(result -> {
+                    var attempt = result.getAttempt();
                     var test = attempt.getSkillTest();
                     return new SkillHistoryEntry(
                             attempt.getId(),

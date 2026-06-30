@@ -43,8 +43,9 @@ extensión sin tocar el motor).
 | M6 | ✅ | Descubrimiento recruiter: `GET /api/v1/recruiter/candidates?skill=X&minScore=Y` |
 | M7 | ✅ | Onboarding/perfil: campos extra en registro, `onboardingComplete`, `GET/PATCH /users/me`, general-information, upload de avatar |
 | M8 | ✅ | Anti-trampa: deadline server-side, one-attempt gate, registro de violaciones, `completed` por test, DELETE test |
+| Audit | ✅ | Security audit: IDOR fixes, logic moved to service layer, N+1 queries eliminated, role enforcement, input validation |
 
-**80 tests pasan.** Suite completa en `./mvnw verify`.
+**81 tests pasan.** Suite completa en `./mvnw verify`.
 
 ## Skills disponibles
 
@@ -94,7 +95,7 @@ GET    /api/v1/tests/{id}             → test saneado
 # Rendir test (CANDIDATE)
 POST   /api/v1/tests/{id}/attempts    → inicia intento → { attemptId, testId, status, startedAt, deadline }
                                         409 si ya existe un intento SUBMITTED para este test
-POST   /api/v1/attempts/{id}/answers  → responde/cambia respuesta
+POST   /api/v1/attempts/{id}/answers  → responde/cambia respuesta (409 si deadline expirado)
 POST   /api/v1/attempts/{id}/submit   → calcula score server-side → Result
 POST   /api/v1/attempts/{id}/violations → registra una violación de anti-trampa (204)
 
@@ -103,9 +104,9 @@ GET    /api/v1/users/me/profile
 PUT    /api/v1/users/me/profile
 GET    /api/v1/users/me/skill-history → historial de intentos submitted con score
 
-# General Information / perfil (autenticado)
-GET    /api/v1/general-information    → categorías + preguntas + opciones del form de perfil
-POST   /api/v1/general-information    → guarda respuestas seleccionadas del candidato
+# General Information / perfil
+GET    /api/v1/general-information    → categorías + preguntas + opciones del form de perfil (autenticado)
+POST   /api/v1/general-information    → guarda respuestas seleccionadas del candidato (CANDIDATE)
 
 # Upload (autenticado)
 POST   /api/v1/upload                 → multipart/form-data → { url }
@@ -132,8 +133,8 @@ también hace auto-submit.
 El campo `violations_count` en `attempt` es auditoría — no se usa para rechazar
 el intento server-side (la política de 3 violaciones es UI).
 
-Un candidato **no puede rendir el mismo test dos veces**: si ya existe un intento
-`SUBMITTED` para ese `(user, skillTest)`, el endpoint devuelve 409.
+Un candidato **no puede rendir el mismo test dos veces**: si ya existe **cualquier** intento
+(en cualquier estado: `IN_PROGRESS` o `SUBMITTED`) para ese `(user, skillTest)`, el endpoint devuelve 409.
 
 `GET /api/v1/tests` incluye `completed: boolean` por test, calculado server-side
 según si el usuario autenticado ya tiene un intento `SUBMITTED`.
@@ -204,7 +205,7 @@ público — el rol sólo se asigna directamente en BD o via seed.
 com.surstudio.cts
 ├── identity        # AppUser, CandidateProfile, auth, perfil, users/me
 │   ├── api/        # AuthController, ProfileController, UsersController
-│   ├── application/# AuthService, ProfileService
+│   ├── application/# AuthService, ProfileService, UsersService
 │   ├── domain/     # AppUser, CandidateProfile, Role, Plan, repos
 │   └── dto/
 ├── assessment      # Banco editable + vista saneada
@@ -250,6 +251,7 @@ com.surstudio.cts
 | V9 | Seed: usuario admin de desarrollo (`admin@cts.dev` / `admin123`) |
 | V10 | `duration_minutes` en `skill_test` · `deadline` y `violations_count` en `attempt` |
 | V11 | Extiende CHECK constraint de `skill` con `METODOLOGIA` y `GESTION` |
+| V12 | `updated_at` en `answer` (auditoría de cambios de respuesta) |
 
 ## Variables de entorno
 
@@ -269,13 +271,15 @@ com.surstudio.cts
 - **`skill` como enum (no String):** vocabulario canónico, sin typos, discovery confiable. Normalización case-insensitive en el borde. Si algún día las skills tienen que ser dato administrable en runtime, se migra de enum a entidad.
 - **Research wizard removido:** se recolectaba pero ningún cliente lo consumía (peso muerto). General Information se conserva.
 - **Trust boundary estructural:** `SkillTestCandidateView.OptionDto` no tiene campo `correct` — imposible exponerlo accidentalmente.
-- **Deadline server-side:** el cliente recibe el timestamp y hace el countdown. El servidor no rechaza el submit si se pasó el tiempo (el frontend hace auto-submit antes), pero la auditoría queda en `deadline`.
+- **Deadline server-side:** el cliente recibe el timestamp y hace el countdown. Si se intenta guardar una respuesta con el deadline expirado, el servidor devuelve 409. El frontend hace auto-submit antes de que esto ocurra; el check server-side es el backstop.
 - **Violaciones como auditoría, no como gate server:** la política de 3 violaciones vive en el frontend (UX); el backend persiste el conteo para análisis pero no bloquea el submit en base a él.
-- **One-attempt enforced en el servidor:** el check de `existsByUserIdAndSkillTestIdAndStatus(SUBMITTED)` está en `AttemptService`, no en el cliente.
+- **One-attempt enforced en el servidor:** el check de `existsByUserIdAndSkillTestId` (cualquier estado) está en `AttemptService`, no en el cliente. Un intento abandonado en `IN_PROGRESS` también cierra la puerta.
 - **`completed` server-side en la lista de tests:** `GET /api/v1/tests` calcula por cada test si el usuario ya tiene un `SUBMITTED`, devolviendo `completed: boolean`.
 - **Contrato limpio (HTTP + ProblemDetail):** sin envelope. Role como lowercase string en respuestas al cliente.
 - **DIP:** el dominio define los `Repository` como interfaces; Spring Data los implementa.
 - **Singleton container pattern en tests:** Testcontainers sin `@Testcontainers`/`@Container` — el contenedor vive en un `static {}` para sobrevivir entre clases que comparten el contexto Spring cacheado.
 - **JWT stateless + `@PreAuthorize`:** sin sesión server-side. Roles reforzados en el método, no solo en la ruta.
 - **`ddl-auto: validate`:** Flyway es dueño del esquema. Hibernate solo valida.
-- **Upload local:** avatares guardados en `./uploads/` y servidos como recurso estático. En producción se reemplaza el `UploadController` por S3/GCS sin cambiar el contrato.
+- **Upload local:** avatares guardados en `./uploads/` y servidos como recurso estático. Solo se aceptan `image/png`, `image/jpeg` e `image/webp` (validado server-side). En producción se reemplaza el `UploadController` por S3/GCS sin cambiar el contrato.
+- **`GET /api/v1/tests` filtrado por rol:** candidatos y admins ven el catálogo; recruiters no (no rinden tests).
+- **Actuator limitado:** solo `/actuator/health` y `/actuator/info` son públicos. El resto requiere autenticación.

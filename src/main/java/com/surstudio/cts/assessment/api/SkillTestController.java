@@ -76,13 +76,13 @@ public class SkillTestController {
     }
 
     @GetMapping("/tests")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public List<SkillTestCandidateView> listTests(@AuthenticationPrincipal AppUser user) {
         return skillTestService.listActiveTests(user);
     }
 
     @GetMapping("/tests/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public SkillTestCandidateView getTest(@PathVariable Long id, @AuthenticationPrincipal AppUser user) {
         return skillTestService.getTestForCandidate(id, user);
     }

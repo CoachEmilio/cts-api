@@ -16,6 +16,17 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
     @Query("""
             SELECT r FROM Result r
             JOIN FETCH r.attempt a
+            JOIN FETCH a.skillTest
+            WHERE a.user.id = :userId AND a.status = :status
+            ORDER BY a.submittedAt DESC
+            """)
+    List<Result> findSubmittedByUserId(
+            @Param("userId") Long userId,
+            @Param("status") AttemptStatus status);
+
+    @Query("""
+            SELECT r FROM Result r
+            JOIN FETCH r.attempt a
             JOIN FETCH a.user u
             JOIN FETCH a.skillTest st
             WHERE st.skill = :skill

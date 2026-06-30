@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Transactional
@@ -78,6 +79,7 @@ public class SkillTestService {
         return toQuestionDto(questionRepository.saveAndFlush(question));
     }
 
+    @Transactional(readOnly = true)
     public SkillTestAdminResponse getTestForAdmin(Long id) {
         return toAdminResponse(requireTest(id));
     }
@@ -92,8 +94,9 @@ public class SkillTestService {
 
     @Transactional(readOnly = true)
     public List<SkillTestCandidateView> listActiveTests(AppUser user) {
+        Set<Long> completed = completedTestIds(user);
         return skillTestRepository.findByActiveTrue().stream()
-                .map(t -> toCandidateView(t, user))
+                .map(t -> toCandidateView(t, completed))
                 .toList();
     }
 
@@ -101,7 +104,12 @@ public class SkillTestService {
     public SkillTestCandidateView getTestForCandidate(Long id, AppUser user) {
         var test = skillTestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("SkillTest not found: " + id));
-        return toCandidateView(test, user);
+        return toCandidateView(test, completedTestIds(user));
+    }
+
+    private Set<Long> completedTestIds(AppUser user) {
+        if (user == null) return Set.of();
+        return attemptRepository.findTestIdsByUserIdAndStatus(user.getId(), AttemptStatus.SUBMITTED);
     }
 
     private SkillTest requireTest(Long id) {
@@ -131,9 +139,8 @@ public class SkillTestService {
         );
     }
 
-    private SkillTestCandidateView toCandidateView(SkillTest test, AppUser user) {
-        boolean completed = user != null && attemptRepository
-                .existsByUserIdAndSkillTestIdAndStatus(user.getId(), test.getId(), AttemptStatus.SUBMITTED);
+    private SkillTestCandidateView toCandidateView(SkillTest test, Set<Long> completedTestIds) {
+        boolean completed = completedTestIds.contains(test.getId());
         return new SkillTestCandidateView(
                 test.getId(), test.getSkill(), test.getTitle(), test.getDurationMinutes(), completed,
                 test.getQuestions().stream()

@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.surstudio.cts.common.security.JwtService;
 import com.surstudio.cts.common.security.SecurityConfig;
 import com.surstudio.cts.common.security.UserDetailsConfig;
+import com.surstudio.cts.identity.application.UsersService;
 import com.surstudio.cts.identity.domain.AppUser;
 import com.surstudio.cts.identity.domain.Role;
 import com.surstudio.cts.identity.domain.UserRepository;
+import com.surstudio.cts.identity.dto.UserMeResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,7 @@ class UsersControllerTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean JwtService jwtService;
     @MockBean UserRepository userRepository;
+    @MockBean UsersService usersService;
 
     private AppUser stubUser;
 
@@ -44,6 +47,10 @@ class UsersControllerTest {
         stubUser.setRole(Role.CANDIDATE);
         stubUser.setFullName("María García");
         when(userRepository.findByEmail("coach@test.com")).thenReturn(Optional.of(stubUser));
+
+        var meResponse = new UserMeResponse(1L, "coach@test.com", "María García", null, "candidate", false, null);
+        when(usersService.getMe(any())).thenReturn(meResponse);
+        when(usersService.patchMe(any(), any())).thenReturn(meResponse);
     }
 
     @Test
@@ -59,8 +66,6 @@ class UsersControllerTest {
     @Test
     @WithUserDetails(value = "coach@test.com", setupBefore = org.springframework.security.test.context.support.TestExecutionEvent.TEST_EXECUTION)
     void patchMe_updatesOnboardingComplete() throws Exception {
-        when(userRepository.save(any())).thenReturn(stubUser);
-
         mockMvc.perform(patch("/api/v1/users/me")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

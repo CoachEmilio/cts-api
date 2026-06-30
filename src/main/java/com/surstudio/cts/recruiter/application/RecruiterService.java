@@ -12,7 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -31,15 +32,21 @@ public class RecruiterService {
         List<Result> results = resultRepository.findBySkillAndMinScore(
                 skill, minScore, AttemptStatus.SUBMITTED);
 
+        // Bulk fetch profiles — one query instead of N
+        var userIds = results.stream()
+                .map(r -> r.getAttempt().getUser().getId())
+                .distinct()
+                .toList();
+        Map<Long, String> displayNameByUserId = profileRepository.findByUserIdIn(userIds)
+                .stream()
+                .filter(p -> p.getDisplayName() != null && !p.getDisplayName().isBlank())
+                .collect(Collectors.toMap(p -> p.getUser().getId(), CandidateProfile::getDisplayName));
+
         return results.stream().map(r -> {
             var attempt = r.getAttempt();
             var user = attempt.getUser();
             var skillTest = attempt.getSkillTest();
-
-            String displayName = profileRepository.findByUserId(user.getId())
-                    .map(CandidateProfile::getDisplayName)
-                    .filter(Objects::nonNull)
-                    .orElse(user.getEmail());
+            String displayName = displayNameByUserId.getOrDefault(user.getId(), user.getEmail());
 
             return new CandidateMatchDto(
                     user.getId(),

@@ -1,4 +1,4 @@
--- Seed: usuario admin para desarrollo. Password: admin123
+-- Seed: usuario admin de desarrollo. Cambiar la contraseña antes de producción.
 INSERT INTO app_user (email, password, full_name, role, plan, onboarding_complete)
 VALUES (
     'admin@cts.dev',

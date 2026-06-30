@@ -100,7 +100,7 @@ GET    /uploads/{filename}            → recurso público (sirve avatares)
 GET    /api/v1/recruiter/candidates?skill=X&minScore=Y  → candidatos con score verificado
 ```
 
-**Skill enum:** ACROBACIA | ARTISTICA | RITMICA | TRAMPOLIN | TUMBLING | AEROBICA | TELA
+**Skill enum:** ACROBACIA | ARTISTICA | RITMICA | TRAMPOLIN | TUMBLING | AEROBICA | TELA | METODOLOGIA | GESTION
 (case-insensitive en entrada, lowercase en respuesta JSON)
 
 **Errores:** ProblemDetail RFC 7807. Role serializado como lowercase (`"candidate"`, `"admin"`, `"recruiter"`).

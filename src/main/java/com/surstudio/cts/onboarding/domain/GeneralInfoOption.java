@@ -20,6 +20,7 @@ public class GeneralInfoOption {
     private int position;
 
     public Long getId() { return id; }
+    public GeneralInfoQuestion getQuestion() { return question; }
     public String getAnswer() { return answer; }
     public int getPosition() { return position; }
 }
