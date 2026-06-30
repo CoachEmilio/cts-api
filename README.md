@@ -168,6 +168,26 @@ recruiter:  búsqueda de candidatos por skill/score (vista sobre Result)
 | JUnit 5 + Mockito | (incluido en Boot) |
 | Maven Wrapper | 3.9.9 |
 
+## Deploy
+
+| Capa | Plataforma | URL |
+|------|------------|-----|
+| Backend | Render (Docker, free tier) | `https://cts-api-lvbs.onrender.com` |
+| Base de datos | Neon (PostgreSQL serverless) | — |
+| Frontend | Vercel | `https://cts-api-front-pi.vercel.app` |
+
+Variables requeridas en Render:
+
+```
+SPRING_DATASOURCE_URL     jdbc:postgresql://<host>/neondb?sslmode=require
+SPRING_DATASOURCE_USERNAME neondb_owner
+SPRING_DATASOURCE_PASSWORD <password>
+APP_JWT_SECRET             <string aleatorio ≥ 32 chars>
+APP_CORS_ORIGINS           https://cts-api-front-pi.vercel.app
+```
+
+> **Nota:** Render free tier se duerme tras 15 minutos de inactividad.
+
 ## Cómo correr
 
 ```bash
@@ -264,6 +284,7 @@ com.surstudio.cts
 | `APP_JWT_EXPIRATION` | `86400000` | Expiración JWT en ms (24 h) |
 | `APP_UPLOAD_DIR` | `uploads` | Directorio local donde se guardan los avatares |
 | `APP_UPLOAD_BASE_URL` | `` | Base URL pública para construir la URL del avatar |
+| `APP_CORS_ORIGINS` | `http://localhost:5173` | Origen(es) permitidos por CORS, separados por coma. En producción: URL del frontend en Vercel. |
 
 ## Decisiones / trade-offs
 
