@@ -5,10 +5,6 @@ gimnasia arma su perfil de trabajo con **habilidades verificadas por test**. Un
 candidato (coach) rinde un test de una habilidad y obtiene un score honesto;
 existen varios tests, y el banco de preguntas es editable de punta a punta.
 
-Reescritura backend de un producto ya probado en React y Kotlin. El rebuild en
-Spring no es ejercicio académico: es donde el scoring tiene que vivir para que un
-score sea creíble, y es la base sobre la que crece el resto.
-
 ## Qué es y qué no es
 
 **Es:** un SaaS de perfiles con skill verificado para el nicho de gimnasia. La
@@ -17,10 +13,6 @@ un test, no autodeclarada en un CV.
 
 **No es:** ni un ATS con Kanban, ni una bolsa de trabajo, ni un LinkedIn. No
 parsea CVs en PDF ni usa IA para puntuar. Esa complejidad se descartó a propósito.
-
-**El wedge:** los boards genéricos del nicho no verifican skill; el incumbente
-horizontal que sí va hacia perfiles verificados es caro y poco customizable. El
-espacio vacío es vertical de gimnasia + banco editable + verificación.
 
 ## El trust boundary
 
@@ -50,20 +42,27 @@ extensión sin tocar el motor).
 | M5 | ✅ | Testcontainers (singleton pattern), MockMvc integration tests, Dockerfile multi-stage, docker-compose, GitHub Actions CI |
 | M6 | ✅ | Descubrimiento recruiter: `GET /api/v1/recruiter/candidates?skill=X&minScore=Y` |
 | M7 | ✅ | Onboarding/perfil: campos extra en registro, `onboardingComplete`, `GET/PATCH /users/me`, general-information, upload de avatar |
-| M8 | ✅ | Anti-trampa: deadline server-side, bloqueo de reintento, registro de violaciones |
+| M8 | ✅ | Anti-trampa: deadline server-side, one-attempt gate, registro de violaciones, `completed` por test, DELETE test |
 
-**Refactor pass (post-M7):** rutas unificadas bajo `/users/me/*`, `skill` como
-enum (`Skill`, case-insensitive), y **research wizard removido** del producto
-(se recolectaba pero nadie lo consumía). General Information se conserva.
+**80 tests pasan.** Suite completa en `./mvnw verify`.
 
-**77 tests pasan.** Suite completa en `./mvnw verify`.
+## Skills disponibles
 
-## Estado: M1–M8 completados (actualizado)
+`ACROBACIA` · `ARTISTICA` · `RITMICA` · `TRAMPOLIN` · `TUMBLING` · `AEROBICA` · `TELA` · `METODOLOGIA` · `GESTION`
 
-La respuesta de `GET /api/v1/tests` ahora incluye `completed: boolean` por test,
-calculado server-side según si el usuario autenticado ya tiene un intento
-`SUBMITTED` para ese test. El frontend usa este campo para bloquear la entrada
-antes de que el candidato intente rendir.
+Case-insensitive en entrada, lowercase en respuesta JSON. Agregar un valor nuevo requiere migración Flyway que actualice el CHECK constraint.
+
+## Tests seed (10 tests, 50 preguntas)
+
+Cargados vía la API como admin. Distribución por skill:
+
+| Skill | Tests |
+|-------|-------|
+| ACROBACIA | Foundations of Gymnastics Coaching |
+| ARTISTICA | WAG — Women's Artistic Gymnastics, MAG — Men's Artistic Gymnastics, Judging — Women's Artistic Gymnastics |
+| RITMICA | Rhythmic Gymnastics |
+| METODOLOGIA | Coaching Methodology, Head Coach Leadership |
+| GESTION | Customer Service & Communication, Sales & Enrollment, Gymnastics Club Administration |
 
 ## Contrato de la API
 
@@ -83,6 +82,7 @@ PATCH  /api/v1/users/me               → actualiza onboardingComplete, avatarUr
 # Banco editable (ADMIN)
 POST   /api/v1/tests                  → { skill, title, active, durationMinutes? }
 PUT    /api/v1/tests/{id}
+DELETE /api/v1/tests/{id}
 POST   /api/v1/tests/{id}/questions
 PUT    /api/v1/questions/{id}
 DELETE /api/v1/questions/{id}
@@ -93,7 +93,7 @@ GET    /api/v1/tests/{id}             → test saneado
 
 # Rendir test (CANDIDATE)
 POST   /api/v1/tests/{id}/attempts    → inicia intento → { attemptId, testId, status, startedAt, deadline }
-                                        403 si ya existe un intento SUBMITTED para este test
+                                        409 si ya existe un intento SUBMITTED para este test
 POST   /api/v1/attempts/{id}/answers  → responde/cambia respuesta
 POST   /api/v1/attempts/{id}/submit   → calcula score server-side → Result
 POST   /api/v1/attempts/{id}/violations → registra una violación de anti-trampa (204)
@@ -120,21 +120,23 @@ GET    /api/v1/recruiter/candidates?skill=X&minScore=Y  → candidatos con score
 El intento tiene un **deadline calculado server-side** (`startedAt + durationMinutes`).
 El cliente recibe el `deadline` en ISO-8601 al iniciar y hace el countdown localmente.
 
-Eventos que generan una violación:
+Eventos que generan una violación (frontend):
 - Cambio de pestaña (`visibilitychange`)
 - Pérdida de foco de ventana (`blur`)
 - Salida de pantalla completa (`fullscreenchange`)
 
-Cada violación se persiste vía `POST /attempts/{id}/violations`. El frontend
-acumula hasta 3; a la tercera hace auto-submit. Al vencimiento del deadline, el
-frontend también hace auto-submit. En ambos casos el servidor calcula el score
-con las respuestas registradas hasta ese momento.
+Cada violación se persiste vía `POST /attempts/{id}/violations`. El frontend acumula
+hasta 3; a la tercera hace auto-submit. Al vencimiento del deadline, el frontend
+también hace auto-submit.
 
 El campo `violations_count` en `attempt` es auditoría — no se usa para rechazar
 el intento server-side (la política de 3 violaciones es UI).
 
 Un candidato **no puede rendir el mismo test dos veces**: si ya existe un intento
 `SUBMITTED` para ese `(user, skillTest)`, el endpoint devuelve 409.
+
+`GET /api/v1/tests` incluye `completed: boolean` por test, calculado server-side
+según si el usuario autenticado ya tiene un intento `SUBMITTED`.
 
 ## Modelo de dominio
 
@@ -143,12 +145,10 @@ identity:   AppUser(email, fullName, phone, role, plan, onboardingComplete, avat
             CandidateProfile(displayName, bio)
 assessment: SkillTest(skill, title, active, durationMinutes) → Question → Option(isCorrect, solo-servidor)
             SkillTestCandidateView incluye completed:boolean calculado server-side por usuario
-            (skill es un enum Skill, no un String libre)
 attempt:    Attempt(user, skillTest, status, startedAt, submittedAt, deadline, violationsCount)
             → Answer → Result(scorePct, correctCount, totalCount)
 scoring:    ScoringStrategy, FlatScoringStrategy
-generalinfo (package onboarding): GeneralInfoCategory → GeneralInfoQuestion
-            → GeneralInfoOption → UserGeneralInfoAnswer
+onboarding: GeneralInfoCategory → GeneralInfoQuestion → GeneralInfoOption → UserGeneralInfoAnswer
 recruiter:  búsqueda de candidatos por skill/score (vista sobre Result)
 ```
 
@@ -243,18 +243,19 @@ com.surstudio.cts
 | V2 | `attempt`, `answer`, `result` |
 | V3 | `app_user` |
 | V4 | `candidate_profile` + `user_id` FK en `attempt` |
-| V5 | Campos onboarding en `app_user` + tablas `general_info_*`, `onboarding_question/option`, `user_*_answer` |
-| V6 | Seed: opciones de información general (especialidad, experiencia, inglés) + seed de research (luego removido por V8) |
-| V7 | `skill` como enum (Replace Type Code with Enum) |
+| V5 | Campos onboarding en `app_user` + tablas `general_info_*` |
+| V6 | Seed: opciones de información general (especialidad, experiencia, inglés) |
+| V7 | `skill` como enum (CHECK constraint) |
 | V8 | Remove research wizard: drop `onboarding_question/option`, `user_research_answer` |
 | V9 | Seed: usuario admin de desarrollo (`admin@cts.dev` / `admin123`) |
 | V10 | `duration_minutes` en `skill_test` · `deadline` y `violations_count` en `attempt` |
+| V11 | Extiende CHECK constraint de `skill` con `METODOLOGIA` y `GESTION` |
 
 ## Variables de entorno
 
 | Variable | Default | Descripción |
 |----------|---------|-------------|
-| `SPRING_DATASOURCE_URL` | (local) | JDBC URL de PostgreSQL |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5433/cts_db` | JDBC URL de PostgreSQL |
 | `SPRING_DATASOURCE_USERNAME` | `cts_user` | Usuario DB |
 | `SPRING_DATASOURCE_PASSWORD` | `cts_pass` | Password DB |
 | `APP_JWT_SECRET` | (dev key) | Secret HMAC-SHA256 para JWT (**producción: ≥ 32 chars, nunca el default**) |
@@ -266,12 +267,12 @@ com.surstudio.cts
 
 - **Score plano en vez de ponderado:** más simple, más honesto. `NUMERIC(5,2)` en DB, `BigDecimal` en Java.
 - **`skill` como enum (no String):** vocabulario canónico, sin typos, discovery confiable. Normalización case-insensitive en el borde. Si algún día las skills tienen que ser dato administrable en runtime, se migra de enum a entidad.
-- **Research wizard removido:** se recolectaba pero ningún cliente lo consumía (peso muerto). La data de research se conserva fuera del producto.
+- **Research wizard removido:** se recolectaba pero ningún cliente lo consumía (peso muerto). General Information se conserva.
 - **Trust boundary estructural:** `SkillTestCandidateView.OptionDto` no tiene campo `correct` — imposible exponerlo accidentalmente.
 - **Deadline server-side:** el cliente recibe el timestamp y hace el countdown. El servidor no rechaza el submit si se pasó el tiempo (el frontend hace auto-submit antes), pero la auditoría queda en `deadline`.
 - **Violaciones como auditoría, no como gate server:** la política de 3 violaciones vive en el frontend (UX); el backend persiste el conteo para análisis pero no bloquea el submit en base a él.
 - **One-attempt enforced en el servidor:** el check de `existsByUserIdAndSkillTestIdAndStatus(SUBMITTED)` está en `AttemptService`, no en el cliente.
-- **`completed` server-side en la lista de tests:** `GET /api/v1/tests` calcula por cada test si el usuario ya tiene un `SUBMITTED`, devolviendo `completed: boolean`. El frontend bloquea la entrada visualmente (candado + opacity) antes de que el candidato intente rendir. Si accede directo por URL, la intro también muestra pantalla de bloqueado.
+- **`completed` server-side en la lista de tests:** `GET /api/v1/tests` calcula por cada test si el usuario ya tiene un `SUBMITTED`, devolviendo `completed: boolean`.
 - **Contrato limpio (HTTP + ProblemDetail):** sin envelope. Role como lowercase string en respuestas al cliente.
 - **DIP:** el dominio define los `Repository` como interfaces; Spring Data los implementa.
 - **Singleton container pattern en tests:** Testcontainers sin `@Testcontainers`/`@Container` — el contenedor vive en un `static {}` para sobrevivir entre clases que comparten el contexto Spring cacheado.
