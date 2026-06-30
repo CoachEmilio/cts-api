@@ -30,6 +30,12 @@ public class SkillTestController {
         return skillTestService.createTest(request);
     }
 
+    @GetMapping("/tests/{id}/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public SkillTestAdminResponse getTestAdmin(@PathVariable Long id) {
+        return skillTestService.getTestForAdmin(id);
+    }
+
     @PutMapping("/tests/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public SkillTestAdminResponse updateTest(
@@ -53,6 +59,13 @@ public class SkillTestController {
             @PathVariable Long id,
             @Valid @RequestBody QuestionRequest request) {
         return skillTestService.updateQuestion(id, request);
+    }
+
+    @DeleteMapping("/tests/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteTest(@PathVariable Long id) {
+        skillTestService.deleteTest(id);
     }
 
     @DeleteMapping("/questions/{id}")

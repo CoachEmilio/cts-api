@@ -2,6 +2,7 @@ package com.surstudio.cts.assessment.application;
 
 import com.surstudio.cts.assessment.domain.*;
 import com.surstudio.cts.assessment.dto.*;
+import com.surstudio.cts.attempt.domain.AttemptRepository;
 import com.surstudio.cts.common.ResourceNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,11 +23,12 @@ class SkillTestServiceTest {
 
     @Mock SkillTestRepository skillTestRepository;
     @Mock QuestionRepository questionRepository;
+    @Mock AttemptRepository attemptRepository;
     @InjectMocks SkillTestService service;
 
     @Test
     void createTest_persistsAndReturnsAdminResponse() {
-        var request = new SkillTestRequest(Skill.ACROBACIA, "Test Básico", null);
+        var request = new SkillTestRequest(Skill.ACROBACIA, "Test Básico", null, null);
         var saved = skillTestWith(1L, Skill.ACROBACIA, "Test Básico", true);
         when(skillTestRepository.save(any())).thenReturn(saved);
 
@@ -41,7 +43,7 @@ class SkillTestServiceTest {
 
     @Test
     void createTest_respectsExplicitActiveFalse() {
-        var request = new SkillTestRequest(Skill.RITMICA, "Y", false);
+        var request = new SkillTestRequest(Skill.RITMICA, "Y", false, null);
         var saved = skillTestWith(2L, Skill.RITMICA, "Y", false);
         when(skillTestRepository.save(any())).thenReturn(saved);
 
@@ -54,7 +56,7 @@ class SkillTestServiceTest {
     void updateTest_throwsWhenNotFound() {
         when(skillTestRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateTest(99L, new SkillTestRequest(Skill.ACROBACIA, "Y", null)))
+        assertThatThrownBy(() -> service.updateTest(99L, new SkillTestRequest(Skill.ACROBACIA, "Y", null, null)))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("99");
     }
@@ -104,7 +106,7 @@ class SkillTestServiceTest {
         var test = skillTestWith(1L, Skill.ACROBACIA, "Test", true);
         when(skillTestRepository.findByActiveTrue()).thenReturn(List.of(test));
 
-        var result = service.listActiveTests();
+        var result = service.listActiveTests(null);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).skill()).isEqualTo(Skill.ACROBACIA);
@@ -114,7 +116,7 @@ class SkillTestServiceTest {
     void getTestForCandidate_throwsWhenNotFound() {
         when(skillTestRepository.findById(42L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getTestForCandidate(42L))
+        assertThatThrownBy(() -> service.getTestForCandidate(42L, null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("42");
     }

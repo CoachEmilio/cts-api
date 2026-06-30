@@ -40,7 +40,7 @@ class SkillTestControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createTest_returns201WithBody() throws Exception {
-        var response = new SkillTestAdminResponse(1L, Skill.ACROBACIA, "Test Básico", true, List.of());
+        var response = new SkillTestAdminResponse(1L, Skill.ACROBACIA, "Test Básico", true, 10, List.of());
         when(service.createTest(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/tests")
@@ -74,7 +74,7 @@ class SkillTestControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createTest_caseInsensitiveSkill_accepted() throws Exception {
-        var response = new SkillTestAdminResponse(1L, Skill.RITMICA, "Test Rítmica", true, List.of());
+        var response = new SkillTestAdminResponse(1L, Skill.RITMICA, "Test Rítmica", true, 10, List.of());
         when(service.createTest(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/tests")
@@ -101,8 +101,8 @@ class SkillTestControllerTest {
     void getTest_returns200WithCandidateView() throws Exception {
         var optionDto = new SkillTestCandidateView.OptionDto(1L, "Impulso, vuelo y aterrizaje", 0);
         var questionDto = new SkillTestCandidateView.QuestionDto(1L, "¿Cuántas fases?", 0, List.of(optionDto));
-        var view = new SkillTestCandidateView(1L, Skill.ACROBACIA, "Test", List.of(questionDto));
-        when(service.getTestForCandidate(1L)).thenReturn(view);
+        var view = new SkillTestCandidateView(1L, Skill.ACROBACIA, "Test", 10, false, List.of(questionDto));
+        when(service.getTestForCandidate(eq(1L), any())).thenReturn(view);
 
         mockMvc.perform(get("/api/v1/tests/1"))
                 .andExpect(status().isOk())
@@ -116,8 +116,8 @@ class SkillTestControllerTest {
     void getTest_responseBodyNeverContainsCorrectField() throws Exception {
         var optionDto = new SkillTestCandidateView.OptionDto(1L, "Option A", 0);
         var questionDto = new SkillTestCandidateView.QuestionDto(1L, "Q?", 0, List.of(optionDto));
-        var view = new SkillTestCandidateView(1L, Skill.ACROBACIA, "T", List.of(questionDto));
-        when(service.getTestForCandidate(1L)).thenReturn(view);
+        var view = new SkillTestCandidateView(1L, Skill.ACROBACIA, "T", 10, false, List.of(questionDto));
+        when(service.getTestForCandidate(eq(1L), any())).thenReturn(view);
 
         var body = mockMvc.perform(get("/api/v1/tests/1"))
                 .andExpect(status().isOk())
@@ -131,7 +131,7 @@ class SkillTestControllerTest {
     @Test
     @WithMockUser(roles = "CANDIDATE")
     void getTest_returns404AsProblemDetail() throws Exception {
-        when(service.getTestForCandidate(99L))
+        when(service.getTestForCandidate(eq(99L), any()))
                 .thenThrow(new ResourceNotFoundException("SkillTest not found: 99"));
 
         mockMvc.perform(get("/api/v1/tests/99"))
@@ -143,7 +143,7 @@ class SkillTestControllerTest {
     @Test
     @WithMockUser(roles = "CANDIDATE")
     void listTests_returns200WithArray() throws Exception {
-        when(service.listActiveTests()).thenReturn(List.of());
+        when(service.listActiveTests(any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/tests"))
                 .andExpect(status().isOk())
@@ -153,7 +153,7 @@ class SkillTestControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void updateTest_returns200WithUpdatedBody() throws Exception {
-        var response = new SkillTestAdminResponse(1L, Skill.RITMICA, "Updated Title", true, List.of());
+        var response = new SkillTestAdminResponse(1L, Skill.RITMICA, "Updated Title", true, 10, List.of());
         when(service.updateTest(eq(1L), any())).thenReturn(response);
 
         mockMvc.perform(put("/api/v1/tests/1")

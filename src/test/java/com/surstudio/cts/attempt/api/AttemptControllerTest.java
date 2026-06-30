@@ -38,7 +38,7 @@ class AttemptControllerTest {
     @Test
     @WithMockUser(roles = "CANDIDATE")
     void startAttempt_returns201() throws Exception {
-        var response = new StartAttemptResponse(10L, 1L, AttemptStatus.IN_PROGRESS, Instant.now());
+        var response = new StartAttemptResponse(10L, 1L, AttemptStatus.IN_PROGRESS, Instant.now(), Instant.now().plusSeconds(600));
         when(service.startAttempt(eq(1L), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/tests/1/attempts"))

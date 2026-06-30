@@ -78,6 +78,14 @@ public class SkillTestService {
         return toQuestionDto(questionRepository.saveAndFlush(question));
     }
 
+    public SkillTestAdminResponse getTestForAdmin(Long id) {
+        return toAdminResponse(requireTest(id));
+    }
+
+    public void deleteTest(Long id) {
+        skillTestRepository.delete(requireTest(id));
+    }
+
     public void deleteQuestion(Long questionId) {
         questionRepository.delete(requireQuestion(questionId));
     }

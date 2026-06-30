@@ -13,7 +13,9 @@ public enum Skill {
     TRAMPOLIN,
     TUMBLING,
     AEROBICA,
-    TELA;
+    TELA,
+    METODOLOGIA,
+    GESTION;
 
     @JsonValue
     public String toJson() {
