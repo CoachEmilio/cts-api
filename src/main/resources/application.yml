@@ -34,6 +34,8 @@ app:
   jwt:
     secret: "${APP_JWT_SECRET:please-set-APP_JWT_SECRET-in-env-min-32-chars}"
     expiration: ${APP_JWT_EXPIRATION:86400000}
+  cors:
+    allowed-origins: "${APP_CORS_ORIGINS:http://localhost:5173}"
 
 management:
   endpoints:
